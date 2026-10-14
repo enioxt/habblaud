@@ -1,3 +1,5 @@
+> **Fork EGOS.** Este é o [Habblaud do Márcio](https://github.com/marmottajr/habblaud) (MIT) com uma camada extra em [`egos/`](egos/): nomes configuráveis, recibo de entrega assinado, moedas por prova, placar opt-in, clãs, modo real e chip de VPS. O núcleo segue o original; a camada fica separada. / This is Márcio's Habblaud (MIT) plus an `egos/` layer.
+
 <p align="center">
   <img src="client/public/assets/brand/logo-mark@4x.png" width="96" alt="Habblaud logo: a small pixel-art building" />
 </p>
