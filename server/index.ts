@@ -3,6 +3,7 @@
 //   npm run dev    -> tsx server/index.ts --dev (Vite em middleware mode, HMR no mesmo servidor)
 //   npm start      -> node dist/server/index.js (serve dist/client)
 import http from 'node:http';
+import { criarEgos } from '../egos/server';
 import { join } from 'node:path';
 import { codexDirsRefused, isDefaultDir } from './accounts/detect';
 import { AccountsService } from './accounts/service';
@@ -87,7 +88,11 @@ const accounts = new AccountsService({
   usageDir: config.usageDir,
   onChange: () => late.office?.markDirty(),
 });
+// EGOS (fork): nomes da casa e recibos de entrega (egos/server); sem as variáveis HABBLAUD_NOMES/HABBLAUD_RECIBOS_DIR
+// nada muda.
+const egos = criarEgos({ env: process.env, dataDir: config.dataDir, contaNome: (id) => accounts.find(id)?.detected.name, isRemote: isRemoteRequest });
 const office = new Office({
+  egosNames: egos.namer,
   names,
   roomAlias: (path) => roomAliases.get(path),
   version: config.version,
@@ -292,6 +297,7 @@ const api = createApiHandler({
   terminals,
   sessions: history,
   timeline: createTimelineHandler({ dir: timelineDir, recording: !!timeline }),
+  extra: egos.handler,
   permissions: permissions ? createPermissionRoutes(permissions) : undefined,
   messages: messages ? createMessageRoutes(messages) : undefined,
   pty: ptys ? createPtyRoutes(ptys) : undefined,

@@ -15,6 +15,15 @@ export const DELIVERY_REWARD = 15;
 export const TURN_REWARD = 5;
 
 const STORAGE_KEY = 'habblaud.wallets.v1';
+/** Economia por recibo (fork EGOS): outra chave, para as moedas de brinquedo antigas não entrarem. */
+const STORAGE_KEY_RECIBO = 'habblaud.wallets.recibo.v1';
+
+/**
+ * Modo da economia. `porRecibo` (ligado pela camada EGOS em egos/client/economia.ts, antes de o mundo nascer): ninguém
+ * ganha moeda por chegar, por tarefa marcada, por pedido atendido nem por tempo; só `creditOnce` com um recibo de
+ * entrega verificado. Apostas continuam (moeda muda de mãos, não nasce).
+ */
+export const economia = { porRecibo: false };
 const LEDGER_MAX = 12;
 const PAID_MAX = 300;
 /** Carteiras de agentes que não aparecem há mais que isso são esquecidas. */
@@ -78,6 +87,8 @@ export class Wallets {
   private map = new Map<string, WalletEntry>();
   private dirty = false;
 
+  private readonly key = economia.porRecibo ? STORAGE_KEY_RECIBO : STORAGE_KEY;
+
   constructor(private readonly storage: StorageLike | null) {
     this.load();
   }
@@ -104,9 +115,13 @@ export class Wallets {
       }
       return { entry: w, created: false };
     }
-    const start = START_COINS[a.kind] ?? START_COINS.main;
+    const start = economia.porRecibo ? 0 : (START_COINS[a.kind] ?? START_COINS.main);
     w = { name: a.name, coins: start, earned: start, wins: 0, losses: 0, vs: {}, paid: [], ledger: [], createdAt: now, seenAt: now };
     this.map.set(a.id, w);
+    if (economia.porRecibo) {
+      this.dirty = true;
+      return { entry: w, created: true };
+    }
     this.log(w, { at: now, delta: start, icon: '🏢', text: tr('Chegou ao escritório') });
     const done = a.tasks.filter((t) => t.status === 'completed');
     if (done.length) {
@@ -152,6 +167,18 @@ export class Wallets {
   }
 
   /**
+   * Crédito único por chave (ex.: "recibo:<hash>"): a mesma prova nunca paga duas vezes a mesma carteira.
+   * Retorna quanto pagou (0 se já tinha pago ou a carteira não existe).
+   */
+  creditOnce(id: string, key: string, amount: number, icon: string, text: string, now: number): number {
+    const w = this.map.get(id);
+    if (!w || amount <= 0 || w.paid.includes(key)) return 0;
+    w.paid.push(key);
+    if (w.paid.length > PAID_MAX) w.paid.splice(0, w.paid.length - PAID_MAX);
+    return this.credit(id, amount, icon, text, now);
+  }
+
+  /**
    * Aposta paga: tira até `amount` de quem perdeu (nunca deixa negativo) e dá a quem ganhou.
    * Retorna o valor que de fato mudou de mãos.
    */
@@ -188,7 +215,7 @@ export class Wallets {
     this.prune(now);
     if (!this.storage) return;
     try {
-      this.storage.setItem(STORAGE_KEY, JSON.stringify({ v: 1, wallets: Object.fromEntries(this.map) }));
+      this.storage.setItem(this.key, JSON.stringify({ v: 1, wallets: Object.fromEntries(this.map) }));
     } catch {
       // cota cheia/bloqueado: segue só em memória
     }
@@ -210,7 +237,7 @@ export class Wallets {
   private load(): void {
     if (!this.storage) return;
     try {
-      const raw = this.storage.getItem(STORAGE_KEY);
+      const raw = this.storage.getItem(this.key);
       if (!raw) return;
       const j = JSON.parse(raw) as { v?: number; wallets?: Record<string, Partial<WalletEntry>> };
       for (const [id, w] of Object.entries(j.wallets ?? {})) {

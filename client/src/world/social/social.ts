@@ -37,7 +37,7 @@ import {
 } from './gathering';
 import * as L from './lines';
 import { bondBetween, hasTrait, personaFor, TRAITS, type Persona, type TraitId } from './persona';
-import { DELIVERY_REWARD, TURN_REWARD, Wallets, type StorageLike } from './wallet';
+import { DELIVERY_REWARD, economia, TURN_REWARD, Wallets, type StorageLike } from './wallet';
 import { tr } from '../../../../shared/i18n';
 
 /** Texto flutuante sobre a cabeça ("+🪙10"), desenhado pelo overlay. */
@@ -1135,21 +1135,31 @@ export class Social {
   /** Snapshot: garante a carteira e paga tarefas concluídas (com "+🪙" quando é ao vivo). */
   syncAgent(ch: Character, a: AgentInfo, now: number, live: boolean): void {
     const { created } = this.wallets.ensure(a, now);
-    if (created) return;
+    if (created || economia.porRecibo) return;
     const paid = this.wallets.payTasks(a, now);
     if (paid && live) this.earned(ch, paid, now);
   }
 
   /** Pedido do usuário atendido (fim de turno do principal). */
   turnDone(ch: Character, now: number): void {
+    if (economia.porRecibo) return;
     const v = this.wallets.credit(ch.id, TURN_REWARD, '💬', tr('Pedido atendido'), now);
     if (v) this.earned(ch, v, now);
   }
 
   /** Subagente entregou o resultado: a tarefa dele está paga. */
   delivered(ch: Character, now: number): void {
+    if (economia.porRecibo) return;
     const v = this.wallets.credit(ch.id, DELIVERY_REWARD, '📦', tr('Entregou: {0}', [ch.info.title ?? tr('resultado')]), now);
     if (v) this.earned(ch, v, now);
+  }
+
+  /** Recibo de entrega verificado (economia por recibo): paga uma vez por recibo, com o "+🪙" na cabeça. */
+  creditRecibo(id: string, key: string, coins: number, text: string, now: number): number {
+    const ch = this.sim.chars.get(id);
+    const v = this.wallets.creditOnce(id, `recibo:${key}`, coins, '🧾', text, now);
+    if (v && ch) this.earned(ch, v, now);
+    return v;
   }
 
   private earned(ch: Character, v: number, now: number): void {

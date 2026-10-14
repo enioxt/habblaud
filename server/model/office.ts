@@ -30,6 +30,7 @@ import { describeGitHubEvent, githubEventKey, RoomEffects, type GitHubEvent } fr
 import { hash32 } from '../../shared/hash';
 import { applyPermission } from '../permissions/registry';
 import type { NameStore, StoredCharacter } from './names';
+import { aplicarNomesDeSala, primeiroLivre, type EgosNamer } from '../../egos/server/nomes';
 import { normalizeCwd, roomDisplayNames, SlotAllocator } from './rooms';
 import { tr } from '../../shared/i18n';
 
@@ -55,6 +56,8 @@ export interface OfficeDeps {
   names: NameStore;
   /** Nome escolhido pelo usuário para a sala da pasta (model/room-aliases.ts), se houver. */
   roomAlias?: (path: string) => string | undefined;
+  /** EGOS (fork): nomes da casa (egos/server/nomes.ts); ausente = nomes do pool. */
+  egosNames?: EgosNamer;
   version: string;
   /** Build do cliente servido (ver OfficeSnapshot.meta.build); ausente no modo dev e nos testes. */
   build?: () => string | undefined;
@@ -325,11 +328,12 @@ export class Office {
     // A mesma sessão retomada noutro processo (ex.: "Assumir aqui") mantém o nome, mesmo com o processo antigo
     // ainda saindo do escritório.
     const person = chosen ?? this.deps.names.assign(p.sessionId, this.takenNames(undefined, p.sessionId));
+    const egos = chosen ? undefined : this.deps.egosNames?.main({ provider: p.provider, accountName: this.deps.accountName(p.account), roomPath: roomId });
     const info: AgentInfo = {
       id: p.id,
       kind: 'main',
       roomId,
-      name: person.name,
+      name: egos ? primeiroLivre(egos, this.takenNames(undefined, p.sessionId)) : person.name,
       look: person.look,
       role: p.role,
       sessionId: p.sessionId,
@@ -587,12 +591,13 @@ export class Office {
       return true;
     }
     const person = this.deps.names.assign(p.id, this.takenNames());
+    const egos = this.deps.egosNames?.sub({ role: p.role });
     const info: AgentInfo = {
       id: p.id,
       kind: 'sub',
       parentId: p.parentId,
       roomId: parent.info.roomId,
-      name: person.name,
+      name: egos ? primeiroLivre(egos, this.takenNames()) : person.name,
       look: person.look,
       role: p.role,
       sessionId: p.sessionId,
@@ -1045,6 +1050,7 @@ export class Office {
     const paths = new Map([...this.rooms].map(([id, r]) => [id, r.path]));
     for (const r of this.demoSnap?.rooms ?? []) paths.set(r.id, r.path);
     this.roomNames = roomDisplayNames(paths);
+    aplicarNomesDeSala(this.roomNames, paths, this.deps.egosNames);
     for (const [id, path] of paths) {
       const alias = this.deps.roomAlias?.(path);
       if (alias) this.roomNames.set(id, alias);

@@ -5,6 +5,7 @@ import type { UiContext } from './context';
 import { h, setHidden, setText, setTitle } from './dom';
 import { plural, relativeTime } from './format';
 import { tr } from '../../../shared/i18n';
+import { economia } from '../world/social/wallet';
 
 /** "+🪙10" / "−🪙10" (sinal tipográfico de menos). */
 export function coinDelta(delta: number): string {
@@ -58,7 +59,8 @@ export class SocialSection {
       h('span', { class: 'ui-social__purse', attrs: { 'aria-hidden': 'true' }, text: '🪙' }),
       h('div', { class: 'ui-social__wallet-body' }, h('div', { class: 'ui-social__wallet-line' }, this.coins, this.record), this.earned),
     );
-    setTitle(wallet, tr('Moedinhas fictícias: entra no escritório com um saldo, ganha 🪙10 por tarefa concluída e 🪙5 por pedido atendido, e aposta com os colegas. Ficam salvas neste navegador.'));
+    if (economia.porRecibo) setTitle(wallet, 'Moedinhas por prova: só nascem de recibo de entrega (teste vermelho→verde, prova visual, decisão registrada, PR com CI verde). Nada por tempo, login ou tarefa marcada.');
+    else setTitle(wallet, tr('Moedinhas fictícias: entra no escritório com um saldo, ganha 🪙10 por tarefa concluída e 🪙5 por pedido atendido, e aposta com os colegas. Ficam salvas neste navegador.'));
     this.el = h(
       'section',
       { class: 'ui-sec ui-social' },
@@ -83,7 +85,7 @@ export class SocialSection {
     setHidden(this.doing, !s.doing);
     setText(this.coins, tr('{0} moedinhas', [s.coins]));
     setText(this.record, recordText(s.wins, s.losses));
-    setText(this.earned, tr('{0} ganhos trabalhando', [coinDelta(s.earned)]));
+    setText(this.earned, economia.porRecibo ? `${coinDelta(s.earned)} ganhos com recibos` : tr('{0} ganhos trabalhando', [coinDelta(s.earned)]));
     setText(this.phrase, tr('Bordão: “{0}”', [s.catchphrase]));
 
     const tk = s.traits.map((t) => t.label).join('|');

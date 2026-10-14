@@ -380,6 +380,7 @@ export function createWorld(canvas: HTMLCanvasElement, store: OfficeStore): Worl
       return p;
     },
     social: (id) => sim.social.info(id),
+    creditRecibo: (id, key, coins, text) => sim.social.creditRecibo(id, key, coins, text, Date.now()),
     onRoomContextMenu: (cb) => {
       roomMenuCbs.add(cb);
       return () => void roomMenuCbs.delete(cb);

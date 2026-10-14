@@ -36,6 +36,7 @@ import { TimelapsePlayer } from './timelapse';
 import { Toasts } from './toasts';
 import { UpdateToaster } from './version';
 import { TopBar } from './topbar';
+import { montarEgos } from '../../../egos/client/ui';
 import { UpdateBanner } from './update';
 import { FreeArea } from './viewport';
 import { tr } from '../../../shared/i18n';
@@ -220,6 +221,8 @@ export function createUI(root: HTMLElement, store: OfficeStore, world: WorldApi)
   help = new HelpDialog();
   const day = new DayLauncher(ctx, (el) => root.append(el));
   topbar.addPanelButton(day.button);
+  // Fork EGOS: placar de recibos (botão, janela e grupo nas Configurações).
+  const egos = montarEgos(ctx, { mount: (el) => root.append(el), addButton: (b) => topbar.addPanelButton(b), settingsEl: settings.el });
   // Botão direito numa sala (lista lateral ou escritório): renomear.
   const renamer = new RoomRenamer(ctx);
   ctx.renameRoom = (id, at) => renamer.open(id, at);
@@ -242,7 +245,7 @@ export function createUI(root: HTMLElement, store: OfficeStore, world: WorldApi)
   }));
   drawer.onLayoutChange = () => applyLayout();
 
-  const components: UiComponent[] = [topbar, sidebar, drawer, terminal, pty, history, deliveries, feed, toasts, settings, empty, banner, tip, notifier, splash, timelapse, sound, day, updateToaster];
+  const components: UiComponent[] = [topbar, sidebar, drawer, terminal, pty, history, deliveries, feed, toasts, settings, empty, banner, tip, notifier, splash, timelapse, sound, day, updateToaster, egos];
 
   // ---------------------------------------------------------------- renderização agrupada por quadro
   let rafId = 0;

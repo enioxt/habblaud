@@ -80,6 +80,11 @@ export interface WorldApi {
    * moedinhas, amizades/rivalidades com quem está lá agora e a roda de que participa. null se não está.
    */
   social?(agentId: string): AgentSocial | null;
+  /**
+   * (Opcional, fork EGOS) Paga a carteira do agente por um recibo de entrega verificado, uma vez por `key` (hash do
+   * recibo). Devolve quanto pagou agora (0 se já pago ou o agente não está no escritório).
+   */
+  creditRecibo?(agentId: string, key: string, coins: number, text: string): number;
   /** (Opcional, aditivo) Botão direito numa sala do escritório: id da sala e o ponto do clique (px da janela). */
   onRoomContextMenu?(cb: (roomId: string, at: { x: number; y: number }) => void): () => void;
   /** (Opcional, aditivo) Acontecimentos sociais (partidas e apostas) para o feed. */

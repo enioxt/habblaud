@@ -41,6 +41,8 @@ export interface ApiDeps {
   sessions?: SessionLookup;
   /** Rotas do timelapse (/api/timeline/*, ver http/timeline.ts); devolve false para o resto. */
   timeline?: (req: IncomingMessage, res: ServerResponse, url: URL) => boolean;
+  /** Rotas de uma camada opcional (ex.: o fork EGOS em egos/server); devolve false para o resto. */
+  extra?: (req: IncomingMessage, res: ServerResponse, url: URL) => boolean;
   /**
    * Rotas de /api/permissions (responder pelo escritório, server/permissions/http.ts). Só existem com bind
    * local (ServerConfig.terminal); a trava do Host local é conferida aqui antes de chamá-las.
@@ -693,6 +695,7 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
       return true;
     }
     if (deps.timeline?.(req, res, url)) return true;
+    if (deps.extra?.(req, res, url)) return true;
     sendJson(res, 404, { error: tr('rota desconhecida') });
     return true;
   };

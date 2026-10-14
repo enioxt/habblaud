@@ -29,6 +29,7 @@
 // Uso de 5h/semanal ao vivo: o mod do Habblaud (npm run mod:install; Claude Code 2.1.287+) ou, em
 // versões anteriores, o tap de statusline (npm run usage:install). Os dois gravam os números na pasta
 // montada em /usage. Sem eles, vale o cache do /usage lido das contas ao subir.
+import { aplicarNomesDeConta, egosCompose, lerNomes, type EgosCompose } from '../egos/host/compose';
 import { spawnSync } from 'node:child_process';
 import { chmodSync, mkdirSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -312,6 +313,7 @@ export function renderOverride(
   codex: AccountMount[] = [],
   remoteTlsDir?: string,
   extraPorts: string[] = [],
+  egos: EgosCompose = { env: [], binds: [] },
 ): string {
   const env: Array<[string, string]> = [
     ['HABBLAUD_CLAUDE_DIRS', mounts.map((m) => m.mountDir).join(',')],
@@ -320,6 +322,7 @@ export function renderOverride(
   if (codex.length) env.push(['HABBLAUD_CODEX_DIRS', codex.map((m) => m.mountDir).join(',')]);
   if (usageDir) env.push(['HABBLAUD_USAGE_DIR', CONTAINER_USAGE_DIR]);
   if (timeZone) env.push(['TZ', timeZone]);
+  env.push(...egos.env);
   const lines = [
     `# Gerado por scripts/docker-up.ts em ${generatedAt.toISOString()} — não edite: é recriado a cada \`npm run docker:up\`.`,
     '# Contém caminhos do host e e-mails das contas: fica fora do git e com permissão 600.',
@@ -336,6 +339,7 @@ export function renderOverride(
   if (usageDir) binds.push({ source: usageDir, target: CONTAINER_USAGE_DIR });
   // Acesso remoto: SÓ a pasta do certificado do servidor (a chave da CA fica no host).
   if (remoteTlsDir) binds.push({ source: remoteTlsDir, target: CONTAINER_REMOTE_TLS_DIR });
+  binds.push(...egos.binds);
   if (binds.length) {
     lines.push('    volumes:');
     for (const b of binds) {
@@ -640,6 +644,8 @@ async function up(opts: Options, port: number): Promise<void> {
 
   const dirs = discoverClaudeDirs(process.env, HOME);
   const accounts = detectAccounts(dirs, { home: HOME, env: process.env });
+  const nomes = lerNomes(join(STATE_DIR, 'nomes-egos.json'));
+  aplicarNomesDeConta(accounts, nomes);
   const mounts = planMounts(dirs, accounts);
   if (!mounts.length) {
     warn(
@@ -665,6 +671,7 @@ async function up(opts: Options, port: number): Promise<void> {
     env: process.env,
     taken: { shorts: accounts.map((a) => a.short), colors: accounts.map((a) => a.color) },
   });
+  aplicarNomesDeConta(codexAccounts, nomes);
   const codexMounts = planCodexMounts(codexDirs, codexAccounts);
   for (const m of codexMounts) {
     const subdirs = m.binds.map((b) => posix.basename(b.target)).join(', ');
@@ -680,7 +687,7 @@ async function up(opts: Options, port: number): Promise<void> {
   const remoteTlsDir = prepareRemoteTls();
   const remotePorts = remoteTlsDir || remoteInsecure() ? remotePortsToPublish() : [];
   const tmp = `${OVERRIDE_FILE}.tmp`;
-  writeFileSync(tmp, renderOverride(mounts, new Date(), usageDir, hostTimeZone(), codexMounts, remoteTlsDir, remotePorts), { mode: 0o600 });
+  writeFileSync(tmp, renderOverride(mounts, new Date(), usageDir, hostTimeZone(), codexMounts, remoteTlsDir, remotePorts, egosCompose(HOME)), { mode: 0o600 });
   chmodSync(tmp, 0o600);
   renameSync(tmp, OVERRIDE_FILE);
   say(tr('docker-compose.override.yml gerado.'));

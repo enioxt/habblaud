@@ -45,6 +45,7 @@ import { accountChipLabel, accountProvider, CODEX_LIVE_HINT, codexApprovalLabel,
 import { ptyControllable } from './ptyapi';
 import { createAgentRow, updateAgentRow } from './rows';
 import { SocialSection } from './social';
+import { RecibosSection } from '../../../egos/client/ui';
 import { TERMINAL_UNAVAILABLE_HINT, type TerminalControl } from './terminal';
 import { Movable } from './movable';
 import type { PtyControl } from './pty';
@@ -259,6 +260,7 @@ class AgentView {
   private timelineShown = TIMELINE_STEP;
   private stats: KvList<StatKey>;
   private social: SocialSection;
+  private recibos = new RecibosSection();
   readonly character: CharacterEditor;
   private sessionValue: HTMLElement;
   private linesPlus: HTMLElement;
@@ -419,6 +421,7 @@ class AgentView {
       this.shellsSec.el,
       nowSec.el,
       this.msgSec.el,
+      this.recibos.el,
       this.social.el,
       this.tasksSec.el,
       this.teamSec.el,
@@ -621,6 +624,7 @@ class AgentView {
     // Vida social (personalidade, carteira, rodas): só de quem está no escritório.
     if (live) this.social.render(a.id, now);
     else setHidden(this.social.el, true);
+    this.recibos.render(a);
 
     // Tarefas.
     const tp = taskProgress(a.tasks);
