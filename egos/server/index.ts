@@ -7,7 +7,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { join } from 'node:path';
 import { makeEgosNamer, parseEgosNomes, type EgosNamer } from './nomes';
-import { lerRecibos, montarResposta, PlacarConfig } from './recibos';
+import { lerHistorico, lerRecibos, montarResposta, PlacarConfig } from './recibos';
 
 export interface EgosDeps {
   env: NodeJS.ProcessEnv;
@@ -19,6 +19,7 @@ export interface EgosDeps {
 
 export interface Egos {
   namer: EgosNamer | undefined;
+  modoReal: boolean;
   handler: (req: IncomingMessage, res: ServerResponse, url: URL) => boolean;
 }
 
@@ -53,8 +54,15 @@ export function criarEgos(d: EgosDeps): Egos {
     .filter(Boolean);
   const placar = new PlacarConfig(join(d.dataDir, 'egos-placar.json'));
 
+  // EGOS_MODO_REAL (ligado por padrão no fork; "0" desliga): sem modo demonstração, só agentes de sessão real.
+  const modoReal = d.env.EGOS_MODO_REAL !== '0';
   const handler: Egos['handler'] = (req, res, url) => {
     const path = url.pathname;
+    if (modoReal && path === '/api/demo') {
+      req.resume();
+      json(res, 403, { error: 'modo real ligado (EGOS_MODO_REAL): o escritório mostra só agentes de sessões reais' });
+      return true;
+    }
     if (!path.startsWith('/api/egos/')) return false;
     if (d.isRemote?.(req)) {
       req.resume();
@@ -64,7 +72,7 @@ export function criarEgos(d: EgosDeps): Egos {
     const method = req.method ?? 'GET';
     if (path === '/api/egos/recibos' && (method === 'GET' || method === 'HEAD')) {
       const recibos = lerRecibos(dir, confiaveis);
-      json(res, 200, montarResposta(recibos, placar.get(), (id) => d.contaNome(id) ?? id, !!dir, confiaveis.length));
+      json(res, 200, montarResposta(recibos, placar.get(), (id) => d.contaNome(id) ?? id, !!dir, confiaveis.length, lerHistorico(dir, confiaveis)));
       return true;
     }
     if (path === '/api/egos/placar' && method === 'POST') {
@@ -90,5 +98,5 @@ export function criarEgos(d: EgosDeps): Egos {
     json(res, 404, { error: 'rota EGOS desconhecida' });
     return true;
   };
-  return { namer, handler };
+  return { namer, handler, modoReal };
 }

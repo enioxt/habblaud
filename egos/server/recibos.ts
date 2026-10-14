@@ -6,6 +6,7 @@
 import { readdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { verificarRecibo, type Recibo } from '../recibo/recibo';
+import { classificar, verificarHistorico, type Perfil, type ReciboHistorico } from '../recibo/classes';
 
 export interface ReciboVisto {
   hash: string;
@@ -39,6 +40,10 @@ export interface RecibosResposta {
   contas: LinhaPlacar[];
   clas: LinhaPlacar[];
   placar: Record<string, boolean>;
+  /** Saldo inicial retroativo por pessoa (recibos históricos, nunca misturados com os novos), com classe e porquê. */
+  pessoas: Perfil[];
+  /** Clãs pelo histórico (separado dos clãs dos recibos novos). */
+  clasHistorico: LinhaPlacar[];
   /** Pasta configurada e chaves confiáveis (sem chave = aceita qualquer assinatura válida). */
   ligado: boolean;
   confianca: number;
@@ -102,8 +107,50 @@ function somar(recibos: readonly ReciboVisto[], chave: (r: ReciboVisto) => strin
   return [...m.values()].sort((a, b) => b.pontos - a.pontos || a.nome.localeCompare(b.nome));
 }
 
-export function montarResposta(recibos: ReciboVisto[], placar: Record<string, boolean>, nomeConta: (id: string) => string, ligado: boolean, confianca: number): RecibosResposta {
+/** Recibos históricos: <dir>/historico/<pessoa>/*.json, verificados; um perfil por pessoa. */
+export function lerHistorico(dir: string | undefined, confiaveis: readonly string[]): Perfil[] {
+  if (!dir) return [];
+  const base = join(dir, 'historico');
+  let pessoas: string[] = [];
+  try {
+    pessoas = readdirSync(base);
+  } catch {
+    return [];
+  }
+  const out: Perfil[] = [];
+  for (const pessoa of pessoas.slice(0, 50)) {
+    const validos: ReciboHistorico[] = [];
+    let nomes: string[] = [];
+    try {
+      nomes = readdirSync(join(base, pessoa)).filter((n) => n.endsWith('.json'));
+    } catch {
+      continue;
+    }
+    for (const n of nomes.slice(0, 1000)) {
+      try {
+        const v = verificarHistorico(JSON.parse(readFileSync(join(base, pessoa, n), 'utf8')), confiaveis);
+        if (v.ok && v.recibo.quem.pessoa === pessoa) validos.push(v.recibo);
+      } catch {
+        // ilegível: não conta
+      }
+    }
+    const p = classificar(validos);
+    if (p) out.push(p);
+  }
+  return out;
+}
+
+export function montarResposta(recibos: ReciboVisto[], placar: Record<string, boolean>, nomeConta: (id: string) => string, ligado: boolean, confianca: number, pessoas: Perfil[] = []): RecibosResposta {
+  const hist = new Map<string, LinhaPlacar>();
+  for (const p of pessoas) for (const c of p.clas) {
+    const l = hist.get(c.nome) ?? { id: c.nome, nome: c.nome, pontos: 0, recibos: 0 };
+    l.pontos += c.pontos;
+    l.recibos++;
+    hist.set(c.nome, l);
+  }
   return {
+    pessoas,
+    clasHistorico: [...hist.values()].sort((a, b) => b.pontos - a.pontos),
     recibos,
     contas: somar(recibos, (r) => (r.conta && placar[r.conta] ? r.conta : undefined), nomeConta),
     clas: somar(recibos, (r) => r.projeto || undefined, (id) => id),

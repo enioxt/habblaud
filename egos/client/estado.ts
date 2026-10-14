@@ -36,7 +36,21 @@ export interface LinhaPlacar {
   recibos: number;
 }
 
+export interface Perfil {
+  pessoa: string;
+  contas: string[];
+  saldo: number;
+  classe: string;
+  subclasse: string;
+  porque: string[];
+  distribuicao: { classe: string; pct: number; sinais: number }[];
+  totais: { commits: number; prsMesclados: number; testeVermelhoVerde: number; provasVisuais: number; decisoesHitl: number; repos: number; privados: number };
+  clas: { nome: string; pontos: number }[];
+}
+
 export interface RecibosResposta {
+  pessoas?: Perfil[];
+  clasHistorico?: LinhaPlacar[];
   recibos: ReciboVisto[];
   contas: LinhaPlacar[];
   clas: LinhaPlacar[];
@@ -113,3 +127,9 @@ export class RecibosStore {
 }
 
 export const recibos = new RecibosStore();
+
+/** Perfil (saldo inicial, classe) da pessoa dona da conta do agente. */
+export function perfilDaConta(dados: RecibosResposta | null, conta: string | undefined): Perfil | undefined {
+  if (!dados?.pessoas?.length || !conta) return undefined;
+  return dados.pessoas.find((p) => p.contas.includes(conta));
+}

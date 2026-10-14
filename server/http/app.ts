@@ -41,7 +41,7 @@ export interface ApiDeps {
   sessions?: SessionLookup;
   /** Rotas do timelapse (/api/timeline/*, ver http/timeline.ts); devolve false para o resto. */
   timeline?: (req: IncomingMessage, res: ServerResponse, url: URL) => boolean;
-  /** Rotas de uma camada opcional (ex.: o fork EGOS em egos/server); devolve false para o resto. */
+  /** Camada opcional (ex.: o fork EGOS em egos/server), consultada antes das rotas do núcleo; devolve false para o resto. */
   extra?: (req: IncomingMessage, res: ServerResponse, url: URL) => boolean;
   /**
    * Rotas de /api/permissions (responder pelo escritório, server/permissions/http.ts). Só existem com bind
@@ -335,6 +335,8 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
       sendJson(res, 403, { error: tr('rota só do próprio computador (hooks, plugins e o auxiliar do host)') });
       return true;
     }
+    // Camada opcional primeiro (ex.: fork EGOS): atende as rotas dela e pode recusar outras (devolve false para o resto).
+    if (deps.extra?.(req, res, url)) return true;
     if (path === '/api/stream') {
       if (method !== 'GET') methodNotAllowed(res, 'GET');
       else hub.attach(req, res);
@@ -695,7 +697,6 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
       return true;
     }
     if (deps.timeline?.(req, res, url)) return true;
-    if (deps.extra?.(req, res, url)) return true;
     sendJson(res, 404, { error: tr('rota desconhecida') });
     return true;
   };

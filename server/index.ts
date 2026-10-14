@@ -258,7 +258,7 @@ const ptys = spawnPty
 late.ptys = ptys;
 late.ptyOff = ptyOff;
 
-if (config.demo) office.setDemo(true);
+if (config.demo && !egos.modoReal) office.setDemo(true);
 // As fontes síncronas (a do Claude Code) terminam o boot aqui, antes de o hub começar a transmitir.
 void agents.start();
 accounts.start();

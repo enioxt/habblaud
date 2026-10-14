@@ -15,6 +15,8 @@ import { buildAnim } from './anim';
 import { drawFxBanner } from './github-fx';
 import type { HeadInfo, Renderer } from './renderer';
 import { tr } from '../../../../shared/i18n';
+import { modoReal } from '../../../../egos/client/modo-real';
+import { atividadeReal, desenharSeloReal, ociosoHa } from '../../../../egos/client/frases';
 
 // A Pixelify Sans tem o "C" maiúsculo quase fechado (lê-se "Oopa" em vez de "Copa") em qualquer
 // peso/tamanho usado no canvas; os textos do mundo usam a fonte do sistema, sempre legível.
@@ -627,13 +629,19 @@ export class Overlay {
       const a = Math.min(1, (now - ch.sayAt) / 120, (ch.sayUntil - now) / 300);
       return this.takeBubble(ch, head, sayIcon(ch.sayText), ch.sayText, 'say', 55, a, ch.sayAt);
     }
-    const act = ch.info.activity;
+    // EGOS modo real: frase curta tirada do evento, com o nome da sala.
+    const act = modoReal.ligado ? atividadeReal(ch.info.activity, this.sim.rooms.get(ch.info.roomId)?.info.name) : ch.info.activity;
     if (ch.mode === 'shell' && ch.shellSince > 0 && !ch.leaving) {
       const sb = this.shellBubble(ch, head, now, opts, selected, hovered);
       if (sb) return sb;
     }
     if (!act || ch.leaving) return null;
     const age = now - ch.activityChangedAt;
+    if (modoReal.ligado && ch.info.kind === 'main' && ch.info.status === 'idle' && age >= RECENT_MS) {
+      const idle = ociosoHa(ch.info.statusSince, Date.now());
+      if (idle && (selected || hovered || opts.bubbles === 'all')) return this.takeBubble(ch, head, '💤', idle, 'info', selected ? 80 : 20, 1, ch.info.statusSince);
+      if (idle && !selected && !hovered) return null;
+    }
     if (selected) return this.takeBubble(ch, head, act.icon, act.text, 'info', 80, 1, ch.activityChangedAt);
     if (hovered) return this.takeBubble(ch, head, act.icon, act.text, 'info', 75, 1, ch.activityChangedAt);
     if (opts.bubbles === 'all' && ch.mode === 'work') return this.takeBubble(ch, head, act.icon, act.text, 'info', age < RECENT_MS ? 50 : 30, 1, ch.activityChangedAt);
@@ -798,6 +806,7 @@ export class Overlay {
       }
       ctx.fillText(b.fitted, tx, y + h / 2 + 1);
     }
+    if (modoReal.ligado && tone !== 'say' && !b.chip) desenharSeloReal(ctx, x, y, w);
     ctx.restore();
   }
 

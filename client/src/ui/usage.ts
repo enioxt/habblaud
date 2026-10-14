@@ -16,6 +16,7 @@ import { isCodex } from './provider';
 import { usageRowFits } from './usage-row';
 import { createAccountChip, createProviderTag, updateAccountChip, updateProviderTag } from './widgets';
 import { tr } from '../../../shared/i18n';
+import { agruparVps, VpsChip } from '../../../egos/client/vps-chip';
 
 export const SOURCE_LABEL: Record<NonNullable<AccountInfo['usage']>['source'], string> = {
   cache: tr('cache do /usage do Claude Code'),
@@ -205,6 +206,8 @@ export class UsageCards {
   readonly el: HTMLElement;
   private list: KeyedList<AccountInfo>;
   private refs = new WeakMap<HTMLElement, CardRefs>();
+  /** Fork EGOS: contas da VPS num chip só (abre ao clicar). */
+  private vpsChip = new VpsChip(() => this.ctx.invalidate());
 
   constructor(private ctx: UiContext) {
     this.el = h('div', { class: 'ui-usage', role: 'group', attrs: { 'aria-label': tr('Uso por conta') } });
@@ -218,8 +221,9 @@ export class UsageCards {
   }
 
   render(): void {
-    const accounts = this.ctx.store.snapshot?.accounts ?? [];
+    const { visiveis: accounts, vps } = agruparVps(this.ctx.store.snapshot?.accounts ?? [], this.vpsChip.aberto);
     this.list.sync(accounts);
+    this.vpsChip.render(vps, this.el);
     this.el.classList.toggle('is-empty', accounts.length === 0);
     setStyleVar(this.el, '--count', String(accounts.length));
     // Medir força o layout da página, e o render roda a cada quadro no replay: só quando as contas mudam (a largura da

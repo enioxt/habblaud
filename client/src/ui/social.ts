@@ -6,6 +6,7 @@ import { h, setHidden, setText, setTitle } from './dom';
 import { plural, relativeTime } from './format';
 import { tr } from '../../../shared/i18n';
 import { economia } from '../world/social/wallet';
+import { modoReal } from '../../../egos/client/modo-real';
 
 /** "+🪙10" / "−🪙10" (sinal tipográfico de menos). */
 export function coinDelta(delta: number): string {
@@ -39,7 +40,7 @@ export class SocialSection {
   private keys = { traits: '', bonds: '', ledger: '' };
 
   constructor(private ctx: UiContext) {
-    const title = h('h3', { class: 'ui-sec__title', text: tr('Vida social') });
+    const title = h('h3', { class: 'ui-sec__title', text: modoReal.ligado ? 'Carteira de recibos' : tr('Vida social') });
     this.extra = h('span', { class: 'ui-sec__extra ui-social__balance' });
     this.doing = h('p', { class: 'ui-social__doing' });
     this.coins = h('strong', { class: 'ui-social__coins' });
@@ -82,11 +83,15 @@ export class SocialSection {
     if (!s) return;
     setText(this.extra, `🪙 ${s.coins}`);
     setText(this.doing, s.doing ?? '');
-    setHidden(this.doing, !s.doing);
+    setHidden(this.doing, modoReal.ligado || !s.doing);
     setText(this.coins, tr('{0} moedinhas', [s.coins]));
     setText(this.record, recordText(s.wins, s.losses));
     setText(this.earned, economia.porRecibo ? `${coinDelta(s.earned)} ganhos com recibos` : tr('{0} ganhos trabalhando', [coinDelta(s.earned)]));
     setText(this.phrase, tr('Bordão: “{0}”', [s.catchphrase]));
+    // EGOS modo real: personalidade, bordão, amizades e rivalidades são sorteio; a seção mostra só a carteira e o extrato.
+    if (modoReal.ligado) {
+      for (const el of [this.doing, this.traits, this.phrase, this.friendsRow, this.rivalsRow, this.record]) setHidden(el, true);
+    }
 
     const tk = s.traits.map((t) => t.label).join('|');
     if (tk !== this.keys.traits) {
@@ -111,8 +116,8 @@ export class SocialSection {
       const rivals = s.bonds.filter((b) => b.kind === 'rivalidade');
       this.friends.replaceChildren(...friends.map(link));
       this.rivals.replaceChildren(...rivals.map(link));
-      setHidden(this.friendsRow, !friends.length);
-      setHidden(this.rivalsRow, !rivals.length);
+      setHidden(this.friendsRow, modoReal.ligado || !friends.length);
+      setHidden(this.rivalsRow, modoReal.ligado || !rivals.length);
     }
 
     const items = s.ledger.slice(0, LEDGER_SHOWN);

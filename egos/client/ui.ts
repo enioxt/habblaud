@@ -5,7 +5,7 @@ import type { AgentInfo } from '../../shared/types';
 import type { UiComponent, UiContext } from '../../client/src/ui/context';
 import { h, iconButton, setAttr, setHidden, setText } from '../../client/src/ui/dom';
 import { ICONS } from '../../client/src/ui/icons';
-import { PROVA_ROTULO, recibos, recibosDoAgente, type ReciboVisto } from './estado';
+import { perfilDaConta, PROVA_ROTULO, recibos, recibosDoAgente, type Perfil, type ReciboVisto } from './estado';
 
 const TROPHY =
   '<svg class="ui-px-icon" width="20" height="20" viewBox="0 0 10 10" shape-rendering="crispEdges" aria-hidden="true" focusable="false">' +
@@ -23,11 +23,21 @@ const CSS = `
 .egos-recibo__prova{font-size:11px;padding:1px 5px;border-radius:5px;border:1px solid var(--ui-line)}
 .egos-recibo details{margin-top:4px;font-size:11px;color:var(--ui-muted)}
 .egos-recibo pre{white-space:pre-wrap;word-break:break-all;font:11px/1.35 ui-monospace,monospace;margin:4px 0 0}
+.egos-perfil{border:1px solid #2f6f7d;border-radius:8px;padding:8px;margin:6px 0 4px;background:rgba(79,179,200,.07)}
+.egos-perfil__cls{font:700 14px/1.25 var(--font-ui);color:var(--ui-text)}
+.egos-perfil__sub{font-size:11.5px;color:var(--ui-muted);margin-top:2px}
+.egos-perfil__saldo{font:700 13px/1.2 var(--font-ui);color:#f4c542;margin-top:6px}
+.egos-perfil__bar{display:flex;height:6px;border-radius:3px;overflow:hidden;margin:6px 0 2px;background:var(--ui-line)}
+.egos-perfil__bar span{display:block;height:100%}
+.egos-perfil ul{margin:4px 0 0;padding-left:16px;font-size:11.5px;color:var(--ui-text)}
+.egos-perfil ul li{margin:2px 0}
 .egos-placar{width:360px}
 .egos-placar ol{margin:4px 0 0;padding:0;list-style:none}
 .egos-placar li{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid var(--ui-line)}
 .egos-placar li b{color:#f4c542}
 .egos-placar__nota{font-size:11.5px;color:var(--ui-muted);margin:4px 0 0}
+.egos-vps-chip{flex:none;align-self:center;font:600 12px/1 var(--font-ui);color:var(--ui-text);background:var(--ui-bg-solid);border:1px solid var(--ui-line-strong);border-radius:8px;padding:7px 10px;cursor:pointer;white-space:nowrap}
+.egos-vps-chip:hover,.egos-vps-chip[aria-expanded=true]{border-color:#4fb3c8}
 `;
 
 function injectCss(): void {
@@ -64,20 +74,40 @@ function itemRecibo(r: ReciboVisto): HTMLElement {
   );
 }
 
-/** Seção da gaveta do agente: os recibos da sessão dele. */
+const CORES = ['#4fb3c8', '#f4c542', '#7bd389', '#e07a5f', '#9d8df1', '#f28fad', '#8ecae6', '#bfbfbf'];
+
+function cartaoPerfil(p: Perfil): HTMLElement {
+  const fmt = (n: number) => n.toLocaleString('pt-BR');
+  const bar = h('div', { class: 'egos-perfil__bar', title: p.distribuicao.map((d) => `${d.classe} ${d.pct}%`).join(' · ') }, ...p.distribuicao.filter((d) => d.pct > 0).map((d, i) => h('span', { style: `width:${d.pct}%;background:${CORES[i % CORES.length]}` })));
+  return h(
+    'div',
+    { class: 'egos-perfil' },
+    h('div', { class: 'egos-perfil__cls', text: `👤 ${p.pessoa} · Classe ${p.classe}` }),
+    h('div', { class: 'egos-perfil__sub', text: `Subclasse ${p.subclasse} · ${p.totais.repos} repositórios (${p.totais.privados} privados, contados só aqui)` }),
+    bar,
+    h('div', { class: 'egos-perfil__saldo', text: `🪙 ${fmt(p.saldo)} pts de saldo inicial (histórico)` }),
+    h('details', { attrs: { open: '' } }, h('summary', { text: 'Por que esta classe' }), h('ul', {}, ...p.porque.map((t) => h('li', { text: t })))),
+    h('div', { class: 'egos-perfil__sub', text: `Clãs: ${p.clas.slice(0, 4).map((c) => `${c.nome} ${fmt(c.pontos)}`).join(' · ')}` }),
+  );
+}
+
+/** Seção da gaveta do agente: perfil da pessoa dona da conta (saldo inicial e classe) e os recibos da sessão. */
 export class RecibosSection {
   readonly el: HTMLElement;
   private list: HTMLElement;
   private extra: HTMLElement;
+  private perfil: HTMLElement;
   private key = '';
 
   constructor() {
     this.extra = h('span', { class: 'ui-sec__extra' });
     this.list = h('ol', { class: 'egos-recibo' });
+    this.perfil = h('div');
     this.el = h(
       'section',
       { class: 'ui-sec egos-recibos' },
-      h('div', { class: 'ui-sec__head' }, h('h3', { class: 'ui-sec__title', text: 'Recibos de entrega' }), this.extra),
+      h('div', { class: 'ui-sec__head' }, h('h3', { class: 'ui-sec__title', text: 'Prova e classe' }), this.extra),
+      this.perfil,
       this.list,
     );
     setHidden(this.el, true);
@@ -85,11 +115,13 @@ export class RecibosSection {
 
   render(a: AgentInfo | undefined): void {
     const list = a ? recibosDoAgente(recibos.dados, a) : [];
-    setHidden(this.el, !list.length);
-    const key = list.map((r) => `${r.hash}:${r.valido}`).join('|');
+    const perfil = a?.kind === 'main' ? perfilDaConta(recibos.dados, a.account) : undefined;
+    setHidden(this.el, !list.length && !perfil);
+    const key = `${perfil ? `${perfil.pessoa}:${perfil.saldo}:${perfil.classe}` : ''}|${list.map((r) => `${r.hash}:${r.valido}`).join('|')}`;
     if (key === this.key) return;
     this.key = key;
-    setText(this.extra, `${list.filter((r) => r.valido).reduce((s, r) => s + r.pontos, 0)} pts`);
+    setText(this.extra, list.length ? `+${list.filter((r) => r.valido).reduce((s, r) => s + r.pontos, 0)} pts novos` : '');
+    this.perfil.replaceChildren(...(perfil ? [cartaoPerfil(perfil)] : []));
     this.list.replaceChildren(...list.slice(0, 8).map(itemRecibo));
   }
 }
@@ -100,18 +132,21 @@ class PlacarPanel {
   private clas: HTMLElement;
   private contas: HTMLElement;
   private nota: HTMLElement;
+  private hist: HTMLElement;
 
   constructor() {
     const close = iconButton(ICONS.close, 'Fechar placar', () => this.hide(), 'ui-icon-btn--sm');
     this.clas = h('ol');
     this.contas = h('ol');
     this.nota = h('p', { class: 'egos-placar__nota' });
+    this.hist = h('ol');
     this.el = h(
       'div',
       { class: 'ui-popover egos-placar', role: 'dialog', tabIndex: -1, attrs: { 'aria-label': 'Placar de recibos', popover: 'auto' } },
       h('div', { class: 'ui-popover__head' }, h('h2', { text: '🏆 Placar de recibos' }), close),
       h('div', { class: 'ui-set-group' }, h('h3', { text: 'Clãs (sala / projeto)' }), this.clas),
       h('div', { class: 'ui-set-group' }, h('h3', { text: 'Contas no placar' }), this.contas, this.nota),
+      h('div', { class: 'ui-set-group' }, h('h3', { text: 'Clãs pelo histórico (saldo inicial, à parte)' }), this.hist),
       h(
         'div',
         { class: 'ui-set-group' },
@@ -146,6 +181,7 @@ class PlacarPanel {
     this.clas.replaceChildren(...(d?.clas ?? []).map(linha));
     if (!d?.clas.length) this.clas.replaceChildren(h('li', { text: d?.ligado ? 'Nenhum recibo ainda.' : 'Pasta de recibos não montada (rode o docker:up do fork).' }));
     this.contas.replaceChildren(...(d?.contas ?? []).map(linha));
+    this.hist.replaceChildren(...(d?.clasHistorico ?? []).slice(0, 8).map((l, i) => h('li', {}, h('span', { text: `${i + 1}. ${l.nome}` }), h('b', { text: `${l.pontos.toLocaleString('pt-BR')} pts` }))));
     setText(this.nota, d?.contas.length ? 'Só aparecem as contas que ligaram o placar.' : 'Nenhuma conta ligou o placar. Ligue em Configurações › Placar (desligado por padrão).');
   }
 }

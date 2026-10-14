@@ -16,6 +16,7 @@ import { PROGRAM_SEED } from '../social/gathering';
 import { hasTrait, personaFor, soloWeights } from '../social/persona';
 import { Social } from '../social/social';
 import { browserStorage, type StorageLike } from '../social/wallet';
+import { modoReal } from '../../../../egos/client/modo-real';
 import {
   canDismantle,
   chooseSeat,
@@ -1172,7 +1173,8 @@ export class Sim {
     }
     if (ch.atSpot !== ch.homeSpot) return this.planGoHome(ch, now);
     ch.arriving = false;
-    if (ch.mode === 'idle' && !isLongIdle(ch.info.status, ch.info.statusSince, now)) {
+    // EGOS modo real: ocioso fica parado na mesa (sem passeio inventado).
+    if (ch.mode === 'idle' && !modoReal.ligado && !isLongIdle(ch.info.status, ch.info.statusSince, now)) {
       if (!ch.nextOutingAt) ch.nextOutingAt = now + idleSitMs(ch.rng, this.options().liveliness);
       if (now >= ch.nextOutingAt) {
         if (this.planOuting(ch, now)) return true;
@@ -1180,7 +1182,7 @@ export class Sim {
       }
     }
     // esperando um shell: só sai da mesa para uma roda (sozinho, fica na pipoca)
-    if (ch.mode === 'shell') {
+    if (ch.mode === 'shell' && !modoReal.ligado) {
       if (!ch.nextSocialAt) ch.nextSocialAt = now + idleSitMs(ch.rng, this.options().liveliness) * 1.3;
       if (now >= ch.nextSocialAt) {
         ch.nextSocialAt = now + idleSitMs(ch.rng, this.options().liveliness) * 1.3;
@@ -1666,7 +1668,7 @@ export class Sim {
         const yawn = yawnPhase(age, ch.info.seed);
         if (yawn >= 0) {
           // bocejo: a cabeça pende e um 🥱 escapa
-          if (now > ch.chatUntil) {
+          if (!modoReal.ligado && now > ch.chatUntil) {
             ch.chatEmoji = '🥱';
             ch.chatUntil = now + 1300;
           }

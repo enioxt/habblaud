@@ -38,6 +38,7 @@ import {
 import * as L from './lines';
 import { bondBetween, hasTrait, personaFor, TRAITS, type Persona, type TraitId } from './persona';
 import { DELIVERY_REWARD, economia, TURN_REWARD, Wallets, type StorageLike } from './wallet';
+import { modoReal } from '../../../../egos/client/modo-real';
 import { tr } from '../../../../shared/i18n';
 
 /** Texto flutuante sobre a cabeça ("+🪙10"), desenhado pelo overlay. */
@@ -134,7 +135,7 @@ export class Social {
    * colegas livres. `groupOnly` (esperando shell): nada de atividade sozinho.
    */
   tryInitiate(ch: Character, now: number, groupOnly: boolean): boolean {
-    if (!this.canJoin(ch, now)) return false;
+    if (modoReal.ligado || !this.canJoin(ch, now)) return false;
     const p = personaFor(ch.info.seed);
     const open = this.joinable(ch, p);
     if (open && ch.rng() < 0.4) return this.join(open, ch, now);
@@ -1213,6 +1214,7 @@ export class Social {
   // =================================================================== utilidades
 
   say(ch: Character, text: string, now: number, ms = SAY_MS): void {
+    if (modoReal.ligado) return; // EGOS modo real: nenhuma fala inventada
     ch.sayText = text;
     ch.sayAt = now;
     ch.sayUntil = now + ms;
@@ -1228,7 +1230,7 @@ export class Social {
 
   private emote(m: Member, emoji: string, now: number): void {
     const c = this.charOf(m);
-    if (!c || (c.sayText && now < c.sayUntil)) return;
+    if (modoReal.ligado || !c || (c.sayText && now < c.sayUntil)) return;
     c.chatEmoji = emoji;
     c.chatUntil = now + 1_300;
   }

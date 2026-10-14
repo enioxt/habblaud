@@ -8,6 +8,7 @@ import type { UiPrefs } from './prefs';
 import { SoundSettingsGroup } from './settings-sound';
 import type { SoundControl } from './sound';
 import { AboutGroup } from './version';
+import { modoReal } from '../../../egos/client/modo-real';
 import { LOCALE_STORAGE_KEY, LOCALES, normalizeLocale, tr, type Locale } from '../../../shared/i18n';
 
 type LanguageChoice = 'auto' | Locale;
@@ -278,7 +279,7 @@ export class SettingsPopover implements UiComponent {
     this.theme.set(p.theme);
     this.language.set(savedLanguage());
     this.soundGroup.render();
-    setHidden(this.demoGroup, this.ctx.store.mock || access().remote);
+    setHidden(this.demoGroup, this.ctx.store.mock || access().remote || modoReal.ligado);
     setHidden(this.remoteGroup, !access().remote);
     this.about.render();
 
