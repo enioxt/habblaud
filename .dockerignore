@@ -9,6 +9,8 @@
 !shared/
 !server/
 !scripts/build-server.mjs
+# Fork EGOS: a camada egos/ entra no build (a chave do recibo mora em ~/.habblaud, nunca aqui).
+!egos/
 
 # Mesmo dentro das pastas incluídas: nada de lixo local.
 **/node_modules
