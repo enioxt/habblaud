@@ -5,6 +5,7 @@ import type { AgentInfo } from '../../shared/types';
 import type { UiComponent, UiContext } from '../../client/src/ui/context';
 import { h, iconButton, setAttr, setHidden, setText } from '../../client/src/ui/dom';
 import { ICONS } from '../../client/src/ui/icons';
+import { docDoAgente } from './hq-doc';
 import { perfilDaConta, PROVA_ROTULO, recibos, recibosDoAgente, type Perfil, type ReciboVisto } from './estado';
 
 const TROPHY =
@@ -23,6 +24,7 @@ const CSS = `
 .egos-recibo__prova{font-size:11px;padding:1px 5px;border-radius:5px;border:1px solid var(--ui-line)}
 .egos-recibo details{margin-top:4px;font-size:11px;color:var(--ui-muted)}
 .egos-recibo pre{white-space:pre-wrap;word-break:break-all;font:11px/1.35 ui-monospace,monospace;margin:4px 0 0}
+.egos-hq-doc{display:inline-block;margin:6px 0;text-decoration:none;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .egos-perfil{border:1px solid #2f6f7d;border-radius:8px;padding:8px;margin:6px 0 4px;background:rgba(79,179,200,.07)}
 .egos-perfil__cls{font:700 14px/1.25 var(--font-ui);color:var(--ui-text)}
 .egos-perfil__sub{font-size:11.5px;color:var(--ui-muted);margin-top:2px}
@@ -98,8 +100,11 @@ export class RecibosSection {
   private extra: HTMLElement;
   private perfil: HTMLElement;
   private key = '';
+  private hq: HTMLAnchorElement;
 
   constructor() {
+    this.hq = h('a', { class: 'ui-btn egos-hq-doc', attrs: { target: '_blank', rel: 'noopener' }, text: 'abrir no HQ' }) as HTMLAnchorElement;
+    setHidden(this.hq, true);
     this.extra = h('span', { class: 'ui-sec__extra' });
     this.list = h('ol', { class: 'egos-recibo' });
     this.perfil = h('div');
@@ -107,6 +112,7 @@ export class RecibosSection {
       'section',
       { class: 'ui-sec egos-recibos' },
       h('div', { class: 'ui-sec__head' }, h('h3', { class: 'ui-sec__title', text: 'Prova e classe' }), this.extra),
+      this.hq,
       this.perfil,
       this.list,
     );
@@ -116,8 +122,11 @@ export class RecibosSection {
   render(a: AgentInfo | undefined): void {
     const list = a ? recibosDoAgente(recibos.dados, a) : [];
     const perfil = a?.kind === 'main' ? perfilDaConta(recibos.dados, a.account) : undefined;
-    setHidden(this.el, !list.length && !perfil);
-    const key = `${perfil ? `${perfil.pessoa}:${perfil.saldo}:${perfil.classe}` : ''}|${list.map((r) => `${r.hash}:${r.valido}`).join('|')}`;
+    const doc = docDoAgente(a);
+    setHidden(this.el, !list.length && !perfil && !doc);
+    setHidden(this.hq, !doc);
+    if (doc) { this.hq.href = doc.url; this.hq.title = doc.caminho; setText(this.hq, `abrir no HQ · ${doc.nome}`); }
+    const key = `${doc?.url ?? ''}|${perfil ? `${perfil.pessoa}:${perfil.saldo}:${perfil.classe}` : ''}|${list.map((r) => `${r.hash}:${r.valido}`).join('|')}`;
     if (key === this.key) return;
     this.key = key;
     setText(this.extra, list.length ? `+${list.filter((r) => r.valido).reduce((s, r) => s + r.pontos, 0)} pts novos` : '');
