@@ -5,7 +5,7 @@ import type { AgentInfo } from '../../shared/types';
 import type { UiComponent, UiContext } from '../../client/src/ui/context';
 import { h, iconButton, setAttr, setHidden, setText } from '../../client/src/ui/dom';
 import { ICONS } from '../../client/src/ui/icons';
-import { docDoAgente } from './hq-doc';
+import { abrirNaMoldura, docDoAgente } from './hq-doc';
 import { perfilDaConta, PROVA_ROTULO, recibos, recibosDoAgente, type Perfil, type ReciboVisto } from './estado';
 
 const TROPHY =
@@ -105,6 +105,9 @@ export class RecibosSection {
   constructor() {
     this.hq = h('a', { class: 'ui-btn egos-hq-doc', attrs: { target: '_blank', rel: 'noopener' }, text: 'abrir no HQ' }) as HTMLAnchorElement;
     setHidden(this.hq, true);
+    this.hq.addEventListener('click', (ev) => {
+      if (abrirNaMoldura(window, this.hq.href)) ev.preventDefault(); // dentro da moldura: abre na coluna do HQ, sem aba nova
+    });
     this.extra = h('span', { class: 'ui-sec__extra' });
     this.list = h('ol', { class: 'egos-recibo' });
     this.perfil = h('div');

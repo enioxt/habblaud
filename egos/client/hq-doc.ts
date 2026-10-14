@@ -41,3 +41,17 @@ export function docDoAgente(agent: { activity?: Activity; recent?: Activity[] } 
   }
   return undefined;
 }
+
+/**
+ * Dentro da moldura lado a lado (E1b) o clique em "abrir no HQ" não abre aba: avisa a moldura (a janela-mãe), que abre o
+ * documento na coluna do HQ. A mensagem só vai para a origem do HQ local; fora de moldura devolve false e o link segue.
+ */
+export function abrirNaMoldura(janela: { parent: Window; self: Window }, url: string): boolean {
+  if (janela.parent === janela.self || !url.startsWith(`${HQ_URL}/hq/documentos/`)) return false;
+  try {
+    janela.parent.postMessage({ tipo: 'egos:abrir-doc', url }, HQ_URL);
+    return true;
+  } catch {
+    return false;
+  }
+}

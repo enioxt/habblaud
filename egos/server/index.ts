@@ -4,8 +4,9 @@
 // Rotas (só do próprio computador; pela porta remota respondem 403):
 //   GET  /api/egos/recibos  -> RecibosResposta (recibos verificados, placar opt-in por conta, clãs por projeto)
 //   POST /api/egos/placar   {conta, ligado} -> liga/desliga a conta no placar
-import type { IncomingMessage, ServerResponse } from 'node:http';
+import { ServerResponse, type IncomingMessage } from 'node:http';
 import { join } from 'node:path';
+import { instalarMoldura, origensDoHq } from './moldura';
 import { makeEgosNamer, parseEgosNomes, type EgosNamer } from './nomes';
 import { lerHistorico, lerRecibos, montarResposta, PlacarConfig } from './recibos';
 
@@ -52,6 +53,7 @@ export function criarEgos(d: EgosDeps): Egos {
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
+  instalarMoldura(ServerResponse.prototype, origensDoHq(d.env.EGOS_HQ_ORIGENS), d.isRemote); // E1b: o HQ local pode enquadrar esta página
   const placar = new PlacarConfig(join(d.dataDir, 'egos-placar.json'));
 
   // EGOS_MODO_REAL (ligado por padrão no fork; "0" desliga): sem modo demonstração, só agentes de sessão real.
