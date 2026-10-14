@@ -10,6 +10,10 @@ describe('ponte agente -> HQ', () => {
     expect(d?.nome).toBe('2026-10-14-plano.md');
     expect(d?.url).toBe('http://127.0.0.1:4700/hq/documentos/?q=2026-10-14-plano.md');
   });
+  it("caminho relativo à home, como o agente escreve: Path.home()/'.egos/relatorios/…'", () => {
+    const d = docDoAgente({ activity: act({ detail: "python3 - <<'PY' p=Path.home()/'.egos/relatorios/revisao-codex/2026-10-14-x.md' s='''" }), recent: [] });
+    expect(d?.nome).toBe('2026-10-14-x.md');
+  });
   it('caminho só nas recentes (docs do kernel): usa a mais recente', () => {
     const d = docDoAgente({ activity: act({ detail: 'npm test' }), recent: [act({ detail: '/home/u/egos/docs/SYSTEM_MAP.md' }), act({ detail: '/home/u/egos/docs/ROADMAP.md' })] });
     expect(d?.nome).toBe('ROADMAP.md');

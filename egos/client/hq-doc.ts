@@ -5,8 +5,8 @@ import type { Activity } from '../../shared/types';
 
 export const HQ_URL = 'http://127.0.0.1:4700';
 
-// Caminho absoluto com extensão de documento, dentro das pastas que o HQ lê.
-const CAMINHO = /(?:~|\/[^\s"'`<>|;&()]*?)\/(?:\.egos\/relatorios|egos(?:\/[^/\s"'`]+)?\/docs)\/[^\s"'`<>|;&()]+?\.(?:md|html|pdf)\b/i;
+// Documento (md/html/pdf) dentro das pastas que o HQ lê: ~/.egos/relatorios (com ~, $HOME ou Path.home()/ na frente) ou docs/ do kernel.
+const CAMINHO = /(?:\.egos\/relatorios|\/egos(?:\/[^/\s"'`]+)?\/docs)\/[^\s"'`<>|;&()]+?\.(?:md|html|pdf)\b/i;
 
 export interface DocHq {
   nome: string;
@@ -19,7 +19,7 @@ function doAtividade(a: Activity | undefined): DocHq | undefined {
   for (const campo of [a.detail, a.text]) {
     const m = campo ? CAMINHO.exec(campo) : null;
     if (!m) continue;
-    const caminho = m[0];
+    const caminho = m[0].startsWith('.egos') ? `~/${m[0]}` : m[0];
     const nome = caminho.split('/').pop() ?? caminho;
     return { nome, caminho, url: `${HQ_URL}/hq/documentos/?q=${encodeURIComponent(nome)}` };
   }
