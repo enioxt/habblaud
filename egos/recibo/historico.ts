@@ -4,7 +4,7 @@
 // (~/.egos/recibos/historico/<login>/). O mesmo critério de prova vale: commit simples vale pouco, PR mesclado vale
 // mais, teste visto vermelho, captura versionada e decisão humana registrada valem mais.
 //
-//   bun egos/recibo/historico.ts --login enioxt [--emails a@b,c@d] [--contas .claude,.claude-conta2,.codex-enio]
+//   bun egos/recibo/historico.ts --login <github> [--emails a@b,c@d] [--contas .claude,.codex-x] [--decisor <regex>]
 //
 // O que sai do GitHub: contagem de commits da pessoa (GraphQL, autor = id da conta) e de PRs mesclados por repo.
 // O que sai dos clones locais (quando existem): por commit da pessoa, só os CAMINHOS tocados e o título, para contar
@@ -101,7 +101,7 @@ function refPadrao(repo: string): string {
 const EXT_LANG: Record<string, string> = { ts: 'TypeScript', tsx: 'TypeScript', js: 'JavaScript', mjs: 'JavaScript', py: 'Python', sh: 'Shell', go: 'Go', rs: 'Rust', md: 'Markdown', html: 'HTML', css: 'CSS', sql: 'SQL', yaml: 'YAML', yml: 'YAML', json: 'JSON' };
 
 /** Sinais de classe a partir dos commits da pessoa num clone local (só caminhos e títulos). */
-export function sinaisDoClone(repo: string, emails: string[]): { sinais: Sinais; contagens: Partial<ContagensHistorico>; shas: string[]; linguagens: Record<string, number> } {
+export function sinaisDoClone(repo: string, emails: string[], decisor: RegExp = /./): { sinais: Sinais; contagens: Partial<ContagensHistorico>; shas: string[]; linguagens: Record<string, number> } {
   const sinais = Object.fromEntries(Object.keys(SINAIS).map((k) => [k, 0])) as Sinais;
   const linguagens: Record<string, number> = {};
   const authorArgs = emails.flatMap((e) => ['--author', e]);
@@ -154,7 +154,14 @@ export function sinaisDoClone(repo: string, emails: string[]): { sinais: Sinais;
   try {
     decisoesHitl = readFileSync(join(repo, 'docs/jobs/hitl-registry.jsonl'), 'utf8')
       .split('\n')
-      .filter((l) => /"decisao"\s*:\s*"[^"]/.test(l) && /"decisor"\s*:\s*"[^"]*Enio/i.test(l)).length;
+      .filter((l) => {
+        try {
+          const j = JSON.parse(l) as { decisao?: string; decisor?: string };
+          return !!j.decisao && decisor.test(j.decisor ?? '');
+        } catch {
+          return false;
+        }
+      }).length;
   } catch {
     decisoesHitl = 0;
   }
@@ -203,6 +210,8 @@ async function main(argv: string[]): Promise<number> {
   }
   emails.push(`${user.id}+${login}@users.noreply.github.com`, `${login}@users.noreply.github.com`);
   const contas = (arg('--contas') ?? '').split(',').filter(Boolean);
+  // Quem decide no hitl-registry (campo decisor); padrão: qualquer decisão humana registrada.
+  const decisor = new RegExp(arg('--decisor') ?? '.', 'i');
   const repos = reposDe(login);
   console.error(`[historico] ${repos.length} repositórios próprios de ${login} (sem forks); lendo contagens no GitHub…`);
   const gh = contagensGh(login, user.node_id, repos.map((r) => r.name));
@@ -216,7 +225,7 @@ async function main(argv: string[]): Promise<number> {
   for (const r of repos) {
     const c = gh.get(r.name) ?? { commits: 0, prs: 0 };
     const clone = clones.get(r.name.toLowerCase());
-    const local = clone ? sinaisDoClone(clone, emails) : undefined;
+    const local = clone ? sinaisDoClone(clone, emails, decisor) : undefined;
     if (!c.commits && !c.prs && !local?.shas.length) continue;
     const contagens: ContagensHistorico = {
       commits: Math.max(c.commits, local?.shas.length ?? 0),
