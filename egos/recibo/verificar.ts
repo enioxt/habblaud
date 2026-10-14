@@ -10,6 +10,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { pubBase64, verificarRecibo } from './recibo';
+import { verificarHistorico } from './classes';
 
 export function lerChavePublica(texto: string): string {
   const t = texto.trim();
@@ -19,10 +20,17 @@ export function lerChavePublica(texto: string): string {
 export function arquivosDeRecibo(alvo: string): string[] {
   if (!existsSync(alvo)) return [];
   if (statSync(alvo).isFile()) return [alvo];
-  return readdirSync(alvo)
-    .filter((n) => n.endsWith('.json'))
-    .sort()
-    .map((n) => join(alvo, n));
+  // A pasta e as subpastas (historico/<pessoa>/), até 3 níveis.
+  const out: string[] = [];
+  const walk = (d: string, depth: number) => {
+    for (const n of readdirSync(d).sort()) {
+      const p = join(d, n);
+      if (n.endsWith('.json') && statSync(p).isFile()) out.push(p);
+      else if (depth < 3 && statSync(p).isDirectory()) walk(p, depth + 1);
+    }
+  };
+  walk(alvo, 0);
+  return out;
 }
 
 function main(argv: string[]): number {
@@ -43,6 +51,15 @@ function main(argv: string[]): number {
       dado = JSON.parse(readFileSync(f, 'utf8'));
     } catch {
       dado = undefined;
+    }
+    if ((dado as { tipo?: string } | undefined)?.tipo === 'egos.recibo.historico') {
+      const hst = verificarHistorico(dado, confiaveis);
+      if (hst.ok) console.log(`VÁLIDO   ${hst.recibo.hash} · histórico ${hst.recibo.quem.pessoa}/${hst.recibo.repo.nome} · ${hst.recibo.pontos} pts`);
+      else {
+        ruins++;
+        console.log(`INVÁLIDO ${f}: ${hst.motivo}`);
+      }
+      continue;
     }
     const r = verificarRecibo(dado, confiaveis);
     if (r.ok) console.log(`VÁLIDO   ${r.recibo.hash} · ${r.recibo.oque.commit.slice(0, 9)} · ${r.recibo.estado} · ${r.recibo.pontos} pts · chave ${r.recibo.chave.id}${confiaveis.length ? '' : ' (sem lista de confiança)'}`);

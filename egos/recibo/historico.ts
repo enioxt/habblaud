@@ -69,16 +69,33 @@ function clonesLocais(login: string): Map<string, string> {
     dirs = [];
   }
   const re = new RegExp(`github\\.com[:/]${login}/([^/\\s]+?)(?:\\.git)?$`, 'i');
+  const tamanho = new Map<string, number>();
   for (const d of dirs) {
     const repo = d.slice(0, -5);
     try {
       const m = re.exec(sh('git', ['-C', repo, 'remote', 'get-url', 'origin']).trim());
-      if (m && !out.has(m[1].toLowerCase())) out.set(m[1].toLowerCase(), repo);
+      if (!m) continue;
+      // Vários clones do mesmo repo (cópias de trabalho em outro ramo): vence o que tem mais história no ramo padrão.
+      const n = Number(sh('git', ['-C', repo, 'rev-list', '--count', refPadrao(repo)]).trim()) || 0;
+      const k = m[1].toLowerCase();
+      if (n > (tamanho.get(k) ?? -1)) {
+        tamanho.set(k, n);
+        out.set(k, repo);
+      }
     } catch {
       // sem origin
     }
   }
   return out;
+}
+
+/** Ramo padrão do clone (origin/HEAD), senão HEAD. */
+function refPadrao(repo: string): string {
+  try {
+    return sh('git', ['-C', repo, 'symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD']).trim() || 'HEAD';
+  } catch {
+    return 'HEAD';
+  }
 }
 
 const EXT_LANG: Record<string, string> = { ts: 'TypeScript', tsx: 'TypeScript', js: 'JavaScript', mjs: 'JavaScript', py: 'Python', sh: 'Shell', go: 'Go', rs: 'Rust', md: 'Markdown', html: 'HTML', css: 'CSS', sql: 'SQL', yaml: 'YAML', yml: 'YAML', json: 'JSON' };
@@ -90,7 +107,7 @@ export function sinaisDoClone(repo: string, emails: string[]): { sinais: Sinais;
   const authorArgs = emails.flatMap((e) => ['--author', e]);
   let log = '';
   try {
-    log = sh('git', ['-C', repo, 'log', 'HEAD', '--no-merges', ...authorArgs, '--format=@@%H%x09%s', '--name-only'], { timeout: 300_000 });
+    log = sh('git', ['-C', repo, 'log', refPadrao(repo), '--no-merges', ...authorArgs, '--format=@@%H%x09%s', '--name-only'], { timeout: 300_000 });
   } catch {
     log = '';
   }
@@ -99,7 +116,7 @@ export function sinaisDoClone(repo: string, emails: string[]): { sinais: Sinais;
   let provasVisuais = 0;
   const vermelho = new Set<string>();
   try {
-    for (const h of sh('git', ['-C', repo, 'log', 'HEAD', '--no-merges', ...authorArgs, '--grep=^VERMELHO-ANTES: ', '--format=%H%x09%b'], { timeout: 120_000 }).split('\n')) {
+    for (const h of sh('git', ['-C', repo, 'log', refPadrao(repo), '--no-merges', ...authorArgs, '--grep=^VERMELHO-ANTES: ', '--format=%H%x09%b'], { timeout: 120_000 }).split('\n')) {
       const sha = /^([0-9a-f]{40})/.exec(h)?.[1];
       if (sha) vermelho.add(sha);
     }
@@ -156,7 +173,9 @@ function assinarHistorico(corpo: Omit<ReciboHistorico, 'chave' | 'hash' | 'assin
 function projetoDe(path: string | undefined, nome: string): string {
   try {
     const nomes = JSON.parse(readFileSync(join(HOME, '.habblaud', 'nomes-egos.json'), 'utf8')) as { salas?: { re: string; nome: string }[] };
-    for (const s of nomes.salas ?? []) if (new RegExp(s.re, 'i').test(path ?? `/${nome}`)) return s.nome;
+    for (const alvo of [path, `/${nome}`]) {
+      if (alvo) for (const s of nomes.salas ?? []) if (new RegExp(s.re, 'i').test(alvo)) return s.nome;
+    }
   } catch {
     // sem nomes da casa
   }
