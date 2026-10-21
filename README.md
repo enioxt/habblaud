@@ -1,7 +1,7 @@
 <!-- APONTA-AO-CINCO 2026-10-15 -->
-> Este é um fork mantido pelo EGOS (escritório de agentes da federação) e continua fork por razão técnica. O EGOS público mora em **https://github.com/enioxt/cinco**.
-
-> **Fork EGOS.** Este é o [Habblaud do Márcio](https://github.com/marmottajr/habblaud) (MIT) com uma camada extra em [`egos/`](egos/): nomes configuráveis, recibo de entrega assinado, moedas por prova, placar opt-in, clãs, modo real e chip de VPS. O núcleo segue o original; a camada fica separada. / This is Márcio's Habblaud (MIT) plus an `egos/` layer.
+> **Fork do EGOS.** Este é o [Habblaud original](https://github.com/marmottajr/habblaud) (MIT) mais uma camada extra na pasta [`egos/`](egos/): nomes configuráveis, recibo de entrega assinado, placar e clãs opcionais. O núcleo segue o original. O EGOS público mora em [github.com/enioxt/cinco](https://github.com/enioxt/cinco).
+>
+> *Fork of the original Habblaud (MIT) plus an `egos/` layer.*
 
 <p align="center">
   <img src="client/public/assets/brand/logo-mark@4x.png" width="96" alt="Habblaud logo: a small pixel-art building" />
