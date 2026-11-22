@@ -6,6 +6,7 @@ import type { OfficeSnapshot } from '../../../shared/types';
 import { DEFAULT_WORLD_OPTIONS, seasonalThemeFor, type Selection, type SocialEvent, type SoundCue, type WorldApi, type WorldOptions, type WorldPlayback } from './api';
 import { loadWorldAssets, type WorldAssets } from './assets';
 import { Camera, overviewFrame } from './camera';
+import { browserStorage, type StorageLike } from './social/wallet';
 import { createDebug, type WorldDebug } from './debug';
 import { BUILDING_H, COL_W } from './constants';
 import { inRect } from './layout/geometry';
@@ -30,11 +31,20 @@ export interface WorldStore {
   on(event: 'snapshot', cb: () => void): () => void;
 }
 
-export function createWorld(canvas: HTMLCanvasElement, store: WorldStore): WorldApi & { debug: WorldDebug } {
+/**
+ * (Fork EGOS, aditivo) Onde as carteiras do mundo ficam guardadas. Sem a opção, igual ao original (localStorage do
+ * navegador); `storage: null` = só em memória (a página da espiral usa assim: nada do mundo fica no aparelho).
+ */
+export interface WorldExtras {
+  storage?: StorageLike | null;
+}
+
+export function createWorld(canvas: HTMLCanvasElement, store: WorldStore, extras: WorldExtras = {}): WorldApi & { debug: WorldDebug } {
   let options: WorldOptions = { ...DEFAULT_WORLD_OPTIONS };
   const camera = new Camera();
+  const guardaVivo = (): StorageLike | null => (extras.storage === undefined ? browserStorage() : extras.storage);
   // Simulação e desenho são recriados quando o timelapse entra, pula ou sai (rebuild).
-  let sim = new Sim(art, () => options);
+  let sim = new Sim(art, () => options, guardaVivo());
   let renderer = new Renderer(canvas, art, sim, camera);
   let overlay = new Overlay(renderer.ctx, sim, renderer, camera);
   let assets: WorldAssets | null = null;
@@ -329,7 +339,7 @@ export function createWorld(canvas: HTMLCanvasElement, store: WorldStore): World
   const rebuild = () => {
     // As carteiras ao vivo gravam a cada 5 s: não perde o que mudou desde a última vez (no replay, não grava nada).
     sim.social.wallets.save(Date.now());
-    sim = new Sim(art, () => options, playback ? null : undefined);
+    sim = new Sim(art, () => options, playback ? null : guardaVivo());
     renderer = new Renderer(canvas, art, sim, camera);
     if (assets) renderer.setAssets(assets);
     if (playback) {
