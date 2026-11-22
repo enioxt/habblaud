@@ -108,8 +108,16 @@ export function lerPresencas(x: unknown): Presenca[] {
 const DONO_GH = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
 const REPO_GH = /^[A-Za-z0-9._-]{1,100}$/;
 
-/** Só github.com em https, caminho <dono>/<repositório>[/...]; qualquer outra coisa some. Devolve o href normalizado. */
-export function linkGithub(v: unknown): string | undefined {
+/** Subcaminhos de leitura aceitos depois de <dono>/<repositório> (E3). */
+const SUB_GH = new Set(['blob', 'tree', 'commit', 'pull', 'issues', 'compare']);
+
+/**
+ * Só github.com em https, caminho <dono>/<repositório>/<blob|tree|commit|pull|issues|compare>/...; o resto some.
+ * Com `repo` ("dono/repositório" da sala) só esse repositório passa. FASE 4: a API da espiral ainda não manda o repo da
+ * sala (nem em /api/eu nem nos itens); enquanto isso só o filtro sintático vale e o repo é opcional. Quando a API mandar,
+ * o store passa a repassá-lo e qualquer link de outro repositório deixa de virar botão.
+ */
+export function linkGithub(v: unknown, repo?: string): string | undefined {
   if (typeof v !== 'string' || v.length > 500) return undefined;
   let u: URL;
   try {
@@ -120,17 +128,19 @@ export function linkGithub(v: unknown): string | undefined {
   if (u.protocol !== 'https:' || u.hostname !== 'github.com' || u.port !== '' || u.username !== '' || u.password !== '') return undefined;
   const partes = u.pathname.split('/');
   if (partes.length < 3 || partes[0] !== '' || !DONO_GH.test(partes[1]) || !REPO_GH.test(partes[2]) || partes[2] === '.' || partes[2] === '..') return undefined;
+  if (!SUB_GH.has(partes[3] ?? '')) return undefined;
+  if (repo !== undefined && `${partes[1]}/${partes[2]}`.toLowerCase() !== repo.toLowerCase()) return undefined;
   return u.href;
 }
 
-export function lerItens(x: unknown): ItemMural[] {
+export function lerItens(x: unknown, repo?: string): ItemMural[] {
   if (!objeto(x) || x.ok !== true || !Array.isArray(x.itens)) return [];
   const out: ItemMural[] = [];
   for (const it of x.itens) {
     if (!objeto(it) || typeof it.id !== 'string' || !/^[a-f0-9]{16}$/.test(it.id)) continue;
     if (!dataOk(it.criado)) continue;
     const autor = objeto(it.dono) && typeof it.dono.login === 'string' ? paraTexto(it.dono.login, LIMITES.login) : '?';
-    const fonte = linkGithub(it.fonte);
+    const fonte = linkGithub(it.fonte, repo);
     const estado = paraTexto(it.estado, 20);
     out.push({
       id: it.id,

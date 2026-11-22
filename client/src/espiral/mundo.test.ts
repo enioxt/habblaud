@@ -4,6 +4,7 @@
 // outra página da mesma origem. Aqui o localStorage é um espião: qualquer leitura ou escrita reprova.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { OfficeSnapshot } from '../../../shared/types';
+import { modoReal } from '../../../egos/client/modo-real';
 import { criarMundoEspiral } from './mundo';
 
 afterEach(() => vi.unstubAllGlobals());
@@ -41,5 +42,16 @@ describe('mundo da espiral sem armazenamento do navegador', () => {
     mundo.setPlayback?.(null);
     mundo.destroy();
     expect(acessos).toEqual([]);
+  });
+});
+
+describe('mundo da espiral só com o que é real (E4)', () => {
+  it('criar o mundo liga o modo real: nada de apostas nem falas inventadas', () => {
+    const { canvas } = ambiente();
+    modoReal.ligado = false;
+    const store = { snapshot: null as OfficeSnapshot | null, on: (_e: 'snapshot', _cb: () => void) => () => {} };
+    const mundo = criarMundoEspiral(canvas, store);
+    expect(modoReal.ligado).toBe(true);
+    mundo.destroy();
   });
 });

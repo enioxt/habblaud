@@ -1,5 +1,5 @@
 // ESPIRAL (visual web): o adaptador com respostas FICTÍCIAS da API (nenhum dado real de pessoa).
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { idSalaProjeto } from './converter';
 import { linkGithub, paraTexto } from './esquema';
 import { montarPainel } from './painel';
@@ -240,6 +240,133 @@ describe('esquema: funções puras', () => {
     for (const ruim of ['http://github.com/a/b', 'https://github.com/a', 'https://github.com/', 'https://github.com:444/a/b', 'https://gist.github.com/a/b', 'https://github.com/a/../../x', 'data:text/html,x', 'javascript:alert(1)', '//github.com/a/b']) {
       expect(linkGithub(ruim)).toBeUndefined();
     }
+  });
+});
+
+const salasNaMistura = (st: EspiralStore) => (st.mistura as unknown as { salas: Map<string, unknown> }).salas.size;
+
+describe('auditoria Sentinela (eixo 1): E1 perda de acesso, E2 corrida, E5 aba volta', () => {
+  it('E1: 403 na sala limpa a mistura e o canvas na hora, fase sem-acesso', async () => {
+    let negar = false;
+    const base = api(['sala-a'], { 'sala-a': { presencas: [presenca(1002, 'bruno-teste', 'Loja nova')], itens: [item('aaaaaaaaaaaaaaaa')] } });
+    const { busca } = falsa((url) => (negar && url.includes('/api/f/') ? { status: 403, corpo: { ok: false } } : base(url)));
+    const store = new EspiralStore(busca, () => AGORA);
+    await store.atualizar();
+    expect(store.snapshot!.agents.length).toBeGreaterThan(0);
+    negar = true;
+    await store.atualizar();
+    expect(store.estado.fase).toBe('sem-acesso');
+    expect(store.estado.presencas).toEqual([]);
+    expect(store.estado.itens).toEqual([]);
+    expect(store.snapshot!.agents).toEqual([]);
+    expect(store.snapshot!.rooms).toEqual([]);
+    expect(salasNaMistura(store)).toBe(0);
+  });
+
+  it('E1: 401 e sem-salas também limpam a mistura e o canvas na hora', async () => {
+    for (const tipo of ['401', 'sem-salas'] as const) {
+      let estado: 'ok' | 'ruim' = 'ok';
+      const base = api(['sala-a'], { 'sala-a': { presencas: [presenca(1002, 'bruno-teste', 'Loja nova')], itens: [] } });
+      const { busca } = falsa((url) => (estado === 'ok' ? base(url) : tipo === '401' ? { status: 401, corpo: { ok: false } } : url.endsWith('/api/eu') ? { status: 200, corpo: eu([]) } : base(url)));
+      const store = new EspiralStore(busca, () => AGORA);
+      await store.atualizar();
+      expect(store.snapshot!.agents.length).toBeGreaterThan(0);
+      estado = 'ruim';
+      await store.atualizar();
+      expect(store.snapshot!.agents, tipo).toEqual([]);
+      expect(store.snapshot!.rooms, tipo).toEqual([]);
+      expect(salasNaMistura(store), tipo).toBe(0);
+    }
+  });
+
+  it('E2: poll da sala A em voo não sobrescreve a escolha da sala B', async () => {
+    let solta!: () => void;
+    const porta = new Promise<void>((r) => (solta = r));
+    let segurar = false;
+    const base = api(['sala-a', 'sala-b'], {
+      'sala-a': { presencas: [presenca(1002, 'bruno-teste', 'Loja A')], itens: [] },
+      'sala-b': { presencas: [presenca(1003, 'carla-teste', 'Loja B')], itens: [] },
+    });
+    const busca = async (url: string, init?: RequestInit) => {
+      if (segurar && url.includes('/sala-a/presenca')) await porta;
+      const r = base(url);
+      if (r === 'cai') throw new TypeError('x');
+      return new Response(JSON.stringify(r.corpo), { status: r.status, headers: { 'content-type': 'application/json' } });
+    };
+    const store = new EspiralStore(busca, () => AGORA);
+    await store.atualizar();
+    segurar = true;
+    const velha = store.atualizar(); // poll de sala-a fica preso
+    await new Promise((r) => setTimeout(r, 5)); // o poll já leu a conta e está preso na presença de sala-a
+    store.escolherSala('sala-b');
+    const nova = store.atualizar();
+    solta();
+    await Promise.all([velha, nova]);
+    expect(store.estado.sala).toBe('sala-b');
+    expect(store.snapshot!.rooms.map((r) => r.name)).toEqual(['Sala do projeto · sala-b', 'carla-teste · Loja B']);
+  });
+
+  it('E2: resultado antigo que chega depois da escolha é descartado mesmo sem nova volta aguardada', async () => {
+    let solta!: () => void;
+    const porta = new Promise<void>((r) => (solta = r));
+    let segurar = false;
+    const base = api(['sala-a', 'sala-b'], { 'sala-a': { presencas: [], itens: [] }, 'sala-b': { presencas: [], itens: [] } });
+    const busca = async (url: string) => {
+      if (segurar && url.includes('/sala-a/presenca')) await porta;
+      const r = base(url);
+      if (r === 'cai') throw new TypeError('x');
+      return new Response(JSON.stringify(r.corpo), { status: r.status, headers: { 'content-type': 'application/json' } });
+    };
+    const store = new EspiralStore(busca, () => AGORA);
+    await store.atualizar();
+    segurar = true;
+    const velha = store.atualizar();
+    await new Promise((r) => setTimeout(r, 5));
+    store.escolherSala('sala-b');
+    await new Promise((r) => setTimeout(r, 5)); // a volta nova termina antes da velha
+    expect(store.estado.sala).toBe('sala-b');
+    solta();
+    await velha;
+    expect(store.estado.sala).toBe('sala-b');
+    expect(store.snapshot!.rooms.map((r) => r.name)).toEqual(['Sala do projeto · sala-b']);
+  });
+
+  it('E5: ao voltar para a aba visível atualiza na hora; escondida não; stop() solta o ouvinte', async () => {
+    const doc = Object.assign(new EventTarget(), { hidden: false });
+    vi.stubGlobal('document', doc);
+    try {
+      const { busca, pedidos } = falsa(api(['sala-a'], { 'sala-a': { presencas: [], itens: [] } }));
+      const store = new EspiralStore(busca, () => AGORA);
+      store.start(1_000_000);
+      await new Promise((r) => setTimeout(r, 5));
+      const n = pedidos.length;
+      doc.hidden = true;
+      doc.dispatchEvent(new Event('visibilitychange'));
+      await new Promise((r) => setTimeout(r, 5));
+      expect(pedidos.length).toBe(n);
+      doc.hidden = false;
+      doc.dispatchEvent(new Event('visibilitychange'));
+      await new Promise((r) => setTimeout(r, 5));
+      expect(pedidos.length).toBeGreaterThan(n);
+      store.stop();
+      const m = pedidos.length;
+      doc.dispatchEvent(new Event('visibilitychange'));
+      await new Promise((r) => setTimeout(r, 5));
+      expect(pedidos.length).toBe(m);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('E3: linkGithub só aceita subcaminhos de leitura; com o repo da sala, só esse repo', () => {
+    expect(linkGithub('https://github.com/exemplo/repo/blob/main/a.md')).toBeDefined();
+    for (const sub of ['blob', 'tree', 'commit', 'pull', 'issues', 'compare']) expect(linkGithub(`https://github.com/exemplo/repo/${sub}/x`)).toBeDefined();
+    for (const ruim of ['https://github.com/exemplo/repo', 'https://github.com/exemplo/repo/', 'https://github.com/exemplo/repo/settings/keys', 'https://github.com/exemplo/repo/archive/x.zip', 'https://github.com/exemplo/repo/invitations']) {
+      expect(linkGithub(ruim), ruim).toBeUndefined();
+    }
+    expect(linkGithub('https://github.com/Exemplo/Repo/pull/7', 'exemplo/repo')).toBe('https://github.com/Exemplo/Repo/pull/7');
+    expect(linkGithub('https://github.com/outro/repo/pull/7', 'exemplo/repo')).toBeUndefined();
+    expect(linkGithub('https://github.com/exemplo/outro/pull/7', 'exemplo/repo')).toBeUndefined();
   });
 });
 

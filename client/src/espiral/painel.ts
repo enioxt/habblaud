@@ -155,6 +155,13 @@ export function montarPainel(raiz: HTMLElement, store: EspiralStore, world: Worl
     if (e.fase === 'carregando') return void corpo.replaceChildren(el('p', undefined, 'Carregando…'));
     if (e.fase === 'fora') return void corpo.replaceChildren(el('p', undefined, 'Para entrar, conecte a sua conta do GitHub.'), link('Entrar com GitHub', `${BASE}/`));
     if (e.fase === 'erro') return void corpo.replaceChildren(botao('Tentar de novo', () => void store.atualizar()));
+    if (e.fase === 'sem-acesso') {
+      selecao = null;
+      return void corpo.replaceChildren(
+        el('p', undefined, 'Seu acesso a este projeto mudou. Os dados dele saíram da tela.'),
+        botao('Conferir de novo', () => void store.atualizar()),
+      );
+    }
     if (e.fase === 'sem-salas') {
       return void corpo.replaceChildren(
         el('p', undefined, 'Você ainda não participa de nenhuma espiral de escuta.'),
