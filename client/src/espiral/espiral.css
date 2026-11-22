@@ -2,6 +2,7 @@
 :root { color-scheme: dark; --fundo: #12151d; --painel: #1a1f2b; --borda: #2c3446; --texto: #e6e9f0; --apagado: #9aa3b5; --acento: #7cc4ff; --aviso: #ffcf70; }
 html, body { margin: 0; height: 100%; overflow: hidden; background: var(--fundo); color: var(--texto); font: 14px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 #mundo { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; image-rendering: pixelated; }
+[hidden] { display: none !important; }
 #painel { position: fixed; top: 0; right: 0; bottom: 0; width: 340px; box-sizing: border-box; display: flex; flex-direction: column; background: var(--painel); border-left: 1px solid var(--borda); overflow: hidden; }
 #painel header { padding: 14px 16px 10px; border-bottom: 1px solid var(--borda); }
 #painel h1 { margin: 0; font-size: 17px; }
