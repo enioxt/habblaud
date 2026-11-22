@@ -2,7 +2,7 @@
 // e implementa o contrato WorldApi consumido pela UI.
 import * as artModule from '../art';
 import { TILE, type ArtModule } from '../art/api';
-import type { OfficeStore } from '../net/store';
+import type { OfficeSnapshot } from '../../../shared/types';
 import { DEFAULT_WORLD_OPTIONS, seasonalThemeFor, type Selection, type SocialEvent, type SoundCue, type WorldApi, type WorldOptions, type WorldPlayback } from './api';
 import { loadWorldAssets, type WorldAssets } from './assets';
 import { Camera, overviewFrame } from './camera';
@@ -21,7 +21,16 @@ export type { WorldDebug } from './debug';
 
 const art: ArtModule = artModule;
 
-export function createWorld(canvas: HTMLCanvasElement, store: OfficeStore): WorldApi & { debug: WorldDebug } {
+/**
+ * (Fork EGOS, aditivo) O que o mundo usa do store: só o retrato atual e o aviso de retrato novo. O OfficeStore do
+ * servidor local cumpre isto; a página da espiral (client/src/espiral) passa outro store com o mesmo formato.
+ */
+export interface WorldStore {
+  readonly snapshot: OfficeSnapshot | null;
+  on(event: 'snapshot', cb: () => void): () => void;
+}
+
+export function createWorld(canvas: HTMLCanvasElement, store: WorldStore): WorldApi & { debug: WorldDebug } {
   let options: WorldOptions = { ...DEFAULT_WORLD_OPTIONS };
   const camera = new Camera();
   // Simulação e desenho são recriados quando o timelapse entra, pula ou sai (rebuild).

@@ -8,3 +8,6 @@ scripts/assets/.cache/
 
 # Configurações locais do Claude Code e caches de geração
 .claude/
+
+# Pacote do visual web da espiral (gerado por npm run build:espiral)
+dist-espiral/
